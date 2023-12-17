@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "stock-trader"
+version = "0.1.0"
+description = ""
+authors = ["Seran Shanmugathas <seran@live.no>"]
+readme = "README.md"
+packages = [{include = "stock_trader"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
