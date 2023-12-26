@@ -90,6 +90,18 @@ def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str)
 
     env.close()
 
+def download_data(stock_ticker: str) -> None:
+    '''
+    Download the data for the stock trading environment.
+
+    Parameters
+    ----------
+    stock_ticker : str
+        The stock ticker to train on.
+    '''
+    data = yf.download(stock_ticker, start='2020-01-01', end='2021-01-01')
+    data.to_csv(f'stock_trader/data/{stock_ticker}.csv')
+
 def main() -> None:
     '''
     The main function for the stock trading trainer.
@@ -99,6 +111,9 @@ def main() -> None:
     render_mode = args[1]
     config = load_config()
     run_environment(config, stock_ticker, render_mode)
+
+    # Uncomment to download data
+    # download_data('AAPL')
 
 if __name__ == "__main__":
     main()
