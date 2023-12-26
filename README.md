@@ -32,14 +32,28 @@ poetry install
 poetry shell
 ```
 
-3. Run the application:
+## Run the application:
+
+1. Run a training session:
 
 ```sh
-python3 stock_trader/main.py
+python3 stock_trader/main.py --train
 ```
 
-3.1. Run the application with arguments:
+2. Run an evaluation session:
 
 ```sh
-python3 stock_trader/main.py --render_mode=human --stock_ticker=AAPL
+python3 stock_trader/main.py --evaluate
+```
+
+3. Run with human mode:
+
+```sh
+python3 stock_trader/main.py --render_mode human
+```
+
+4. Choose own stock:
+
+```sh
+python3 stock_trader/main.py --stock_ticker AAPL
 ```
