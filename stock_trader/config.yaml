@@ -10,14 +10,21 @@ num_episodes: 10
 ## Configuration for agent
 agent:
   name: DDQNAgent
-  alpha: 0.1
+  hidden_size: 64 # Number of neurons in hidden layer
+  hidden_sizes: [64, 64] # Example: two hidden layers with 64 neurons each
+  alpha: 0.1 # Degree of prioritization in replay buffer
+  beta: 0.4 # Initial value for importance-sampling weight
   epsilon: 1.0
   epsilon_min: 0.01
   epsilon_decay: 0.995
   gamma: 0.95
+  tau: 0.001 # Rate of soft updating target network
   learning_rate: 0.001
   batch_size: 32
-  memory_size: 1000
+  buffer_size: 1000
   train_start: 1000
+  target_update_freq: 100 # Update target network every 100 steps
+  learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
+  learning_rate_decay: 0.9 # Learning rate decay factor
   model_path: ./model/model.h5
   target_model_path: ./model/target_model.h5
