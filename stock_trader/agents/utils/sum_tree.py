@@ -1,28 +1,30 @@
-'''
+"""
 The sum tree data structure for prioritized replay.
-'''
+"""
 import numpy as np
 
+
 class SumTree:
-    '''
+    """
     The sum tree data structure for prioritized replay.
-    '''
+    """
+
     def __init__(self, buffer_size: int) -> None:
-        '''
+        """
         Initialize the sum tree.
 
         Parameters
         ----------
         buffer_size : int
             The size of the replay buffer.
-        '''
+        """
         self.buffer_size = buffer_size
         self.tree = np.zeros(2 * buffer_size - 1)
         self.buffer = np.zeros(buffer_size, dtype=object)
         self.position = 0
 
     def add(self, priority: float, sample: tuple) -> None:
-        '''
+        """
         Add a sample to the sum tree.
 
         Parameters
@@ -31,14 +33,14 @@ class SumTree:
             The priority of the sample.
         sample : tuple
             The sample to add to the sum tree.
-        '''
+        """
         tree_index = self.position + self.buffer_size - 1
         self.buffer[self.position] = sample
         self.update(tree_index, priority)
         self.position = (self.position + 1) % self.buffer_size
 
     def update(self, tree_index: int, priority: float) -> None:
-        '''
+        """
         Update the sum tree.
 
         Parameters
@@ -47,7 +49,7 @@ class SumTree:
             The index of the tree.
         priority : float
             The priority of the sample.
-        '''
+        """
         change = priority - self.tree[tree_index]
         self.tree[tree_index] = priority
 
@@ -56,7 +58,7 @@ class SumTree:
             self.tree[tree_index] += change
 
     def get_leaf(self, value: float) -> tuple:
-        '''
+        """
         Get the leaf of the sum tree.
 
         Parameters
@@ -70,7 +72,7 @@ class SumTree:
             The leaf of the sum tree.
         int
             The index of the leaf.
-        '''
+        """
         parent_index = 0
 
         while True:
@@ -90,25 +92,25 @@ class SumTree:
         data_index = leaf_index - self.buffer_size + 1
 
         return leaf_index, self.tree[leaf_index], self.buffer[data_index]
-    
+
     def total_priority(self) -> float:
-        '''
+        """
         Get the total priority of the sum tree.
 
         Returns
         -------
         float
             The total priority of the sum tree.
-        '''
+        """
         return self.tree[0]
-    
+
     def __len__(self) -> int:
-        '''
+        """
         Get the length of the sum tree.
 
         Returns
         -------
         int
             The length of the sum tree.
-        '''
+        """
         return len(self.buffer)

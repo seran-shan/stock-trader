@@ -5,9 +5,10 @@ import torch.nn as nn
 from agents.utils.sum_tree import SumTree
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
+
+
 class DNN(nn.Module):
-    '''
+    """
     Simple Deep Neural Network
 
     Parameters
@@ -23,7 +24,8 @@ class DNN(nn.Module):
     -------
     forward(x: torch.Tensor) -> torch.Tensor
         Forward pass of the neural network.
-    '''
+    """
+
     def __init__(self, input_size: int, hidden_size: int, output_size: int):
         super(DNN, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
@@ -39,7 +41,7 @@ class DNN(nn.Module):
 
 
 class PrioritedReplayBuffer:
-    '''
+    """
     Prioritized Replay Buffer
 
     Parameters
@@ -54,7 +56,7 @@ class PrioritedReplayBuffer:
         The priorities for the replay buffer.
     position : int
         The current position in the replay buffer.
-    '''
+    """
 
     def __init__(self, buffer_size: int, alpha: float = 0.6):
         self.buffer_size = buffer_size
@@ -64,7 +66,7 @@ class PrioritedReplayBuffer:
         self.position = 0
 
     def add(self, error: float, sample: tuple):
-        '''
+        """
         Add a sample to the replay buffer.
 
         Parameters
@@ -73,12 +75,12 @@ class PrioritedReplayBuffer:
             The error for the sample.
         sample : tuple
             The sample to add to the replay buffer.
-        '''
+        """
         priority = (abs(error) + 1e-5) ** self.alpha
         self.buffer.add(priority, sample)
 
     def sample(self, batch_size: int, beta: float = 0.4) -> tuple:
-        '''
+        """
         Sample from the replay buffer.
 
         Parameters
@@ -96,7 +98,7 @@ class PrioritedReplayBuffer:
             The indices of the samples.
         np.array
             The weights for the samples.
-        '''
+        """
         indices = np.zeros(batch_size, dtype=np.int32)
         samples = []
         weights = np.zeros((batch_size), dtype=np.float32)
@@ -116,9 +118,9 @@ class PrioritedReplayBuffer:
 
         weights /= np.max(weights)
         return samples, indices, weights
-    
+
     def update_priorities(self, indices: np.array, errors: np.array):
-        '''
+        """
         Update the priorities of the replay buffer.
 
         Parameters
@@ -127,19 +129,19 @@ class PrioritedReplayBuffer:
             The indices of the samples.
         errors : np.array
             The errors for the samples.
-        '''
+        """
         for i, error in zip(indices, errors):
             priority = (abs(error) + 1e-5) ** self.alpha
             self.buffer.update(i, priority)
 
 
 class DDQN:
-    '''
+    """
     Deep Double Q-Learning Network
-    '''
+    """
 
     def __init__(self, state_size: int, action_size: int, config: dict):
-        '''
+        """
         Initialize the DDQN agent.
 
         Parameters
@@ -150,78 +152,108 @@ class DDQN:
             The action size of the environment.
         config : dict
             The configuration for the agent.
-        '''
+        """
         self.state_size = state_size
         self.action_size = action_size
         self.config = config
 
-        self.memory = PrioritedReplayBuffer(config['buffer_size'], config['alpha'])
-        self.gamma = config['gamma'] # discount rate
-        self.epsilon = config['epsilon'] # exploration rate
-        self.epsilon_min = config['epsilon_min']
-        self.epsilon_decay = config['epsilon_decay']
-        self.learning_rate = config['learning_rate']
-        self.tau = config['tau']
-        self.beta = config['beta']
+        self.memory = PrioritedReplayBuffer(config["buffer_size"], config["alpha"])
+        self.gamma = config["gamma"]  # discount rate
+        self.epsilon = config["epsilon"]  # exploration rate
+        self.epsilon_min = config["epsilon_min"]
+        self.epsilon_decay = config["epsilon_decay"]
+        self.learning_rate = config["learning_rate"]
+        self.tau = config["tau"]
+        self.beta = config["beta"]
 
-        self.q_network = DNN(state_size, config['hidden_size'], action_size)
-        self.target_network = DNN(state_size, config['hidden_size'], action_size)
-        self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
+        self.q_network = DNN(state_size, config["hidden_size"], action_size)
+        self.target_network = DNN(state_size, config["hidden_size"], action_size)
+        self.optimizer = torch.optim.Adam(
+            self.q_network.parameters(), lr=self.learning_rate
+        )
 
         # Initializing target network weights with the Q network weights
         self.target_network.load_state_dict(self.q_network.state_dict())
         # Setting target network in evaluation mode
         self.target_network.eval()
 
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=self.gamma)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(
+            self.optimizer, step_size=100, gamma=self.gamma
+        )
 
     def act(self, state: np.array) -> int:
-        '''
+        """
         Choose an action based on the current state and epsilon-greedy policy.
 
         Parameters
         ----------
         state : np.array
             The current state of the environment.
-        '''
-        if np.random.rand() > self.epsilon: # exploitation
+        """
+        if np.random.rand() > self.epsilon:  # exploitation
             self.q_network.eval()
             state = torch.tensor(state, dtype=torch.float).unsqueeze(0).to(device)
             with torch.no_grad():
                 action_values: DNN = self.q_network(state)
             self.q_network.train()
             return np.argmax(action_values.cpu().data.numpy())
-        else: # exploration
+        else:  # exploration
             return np.random.choice(np.arange(self.action_size))
-        
-    def replay(self, batch_size: int = None) -> None:
-        '''
-        Experience replay with prioritized replay buffer.
-        '''
 
-        batch_size = self.config['batch_size'] if batch_size is None else batch_size
+    def replay(self, batch_size: int = None) -> None:
+        """
+        Experience replay with prioritized replay buffer.
+        """
+
+        batch_size = self.config["batch_size"] if batch_size is None else batch_size
 
         if len(self.memory.buffer) < batch_size:
             return
 
         samples, indices, weights_tensor = self._sample_from_memory(batch_size)
-        states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor = self._unpack_samples(samples)
-        loss, Q_targets = self._compute_loss(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor, weights_tensor)
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+        ) = self._unpack_samples(samples)
+        loss, Q_targets = self._compute_loss(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
 
         self.optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1)
         self.optimizer.step()
 
-        errors = torch.abs(Q_targets - self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)).data.cpu().numpy()
+        errors = (
+            torch.abs(
+                Q_targets
+                - self.q_network(states_tensor)
+                .gather(1, actions_tensor.unsqueeze(1))
+                .squeeze(1)
+            )
+            .data.cpu()
+            .numpy()
+        )
         self.update_priorities(indices, errors)
 
         self.update_epsilon()
 
         self.scheduler.step()
-    
-    def _sample_from_memory(self, batch_size: int) -> tuple[list[tuple[np.ndarray, int, float, np.ndarray, bool]], np.ndarray, torch.Tensor]:
-        '''
+
+    def _sample_from_memory(
+        self, batch_size: int
+    ) -> tuple[
+        list[tuple[np.ndarray, int, float, np.ndarray, bool]], np.ndarray, torch.Tensor
+    ]:
+        """
         Sample a minibatch from the replay buffer.
 
         Parameters
@@ -233,13 +265,17 @@ class DDQN:
         -------
         tuple[list[tuple[np.ndarray, int, float, np.ndarray, bool]], np.ndarray, torch.Tensor]
             The samples from the replay buffer.
-        '''
+        """
         samples, indices, weights = self.memory.sample(batch_size, self.beta)
-        weights_tensor: torch.Tensor = torch.tensor(weights, dtype=torch.float).to(device)
+        weights_tensor: torch.Tensor = torch.tensor(weights, dtype=torch.float).to(
+            device
+        )
         return samples, indices, weights_tensor
-    
-    def _unpack_samples(self, samples: list[tuple[np.ndarray, int, float, np.ndarray, bool]]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        '''
+
+    def _unpack_samples(
+        self, samples: list[tuple[np.ndarray, int, float, np.ndarray, bool]]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
         Unpack the samples from the replay buffer.
 
         Parameters
@@ -251,17 +287,37 @@ class DDQN:
         -------
         tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
             The unpacked samples from the replay buffer.
-        '''
+        """
         states, actions, rewards, next_states, dones = zip(*samples)
         states_tensor: torch.Tensor = torch.tensor(states, dtype=torch.float).to(device)
-        actions_tensor: torch.Tensor = torch.tensor(actions, dtype=torch.long).to(device)
-        rewards_tensor: torch.Tensor = torch.tensor(rewards, dtype=torch.float).to(device)
-        next_states_tensor: torch.Tensor = torch.tensor(next_states, dtype=torch.float).to(device)
+        actions_tensor: torch.Tensor = torch.tensor(actions, dtype=torch.long).to(
+            device
+        )
+        rewards_tensor: torch.Tensor = torch.tensor(rewards, dtype=torch.float).to(
+            device
+        )
+        next_states_tensor: torch.Tensor = torch.tensor(
+            next_states, dtype=torch.float
+        ).to(device)
         dones_tensor: torch.Tensor = torch.tensor(dones, dtype=torch.int).to(device)
-        return states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor
-    
-    def _compute_loss(self, states_tensor: torch.Tensor, actions_tensor: torch.Tensor, rewards_tensor: torch.Tensor, next_states_tensor: torch.Tensor, dones_tensor: torch.Tensor, weights_tensor: torch.Tensor) -> torch.Tensor:
-        '''
+        return (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+        )
+
+    def _compute_loss(
+        self,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        """
         Compute the loss for the samples from the replay buffer.
         The loss is computed as the mean squared error between the current Q values and the target Q values.
 
@@ -284,16 +340,29 @@ class DDQN:
         -------
         torch.Tensor
             The loss for the samples from the replay buffer.
-        '''
-        Q_current: torch.Tensor = self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+        """
+        Q_current: torch.Tensor = (
+            self.q_network(states_tensor)
+            .gather(1, actions_tensor.unsqueeze(1))
+            .squeeze(1)
+        )
         Q_next: torch.Tensor = self.target_network(next_states_tensor).detach()
         Q_next_max: torch.Tensor = Q_next.max(1)[0]
-        Q_targets: torch.Tensor = rewards_tensor + (self.gamma * Q_next_max * (1 - dones_tensor))
+        Q_targets: torch.Tensor = rewards_tensor + (
+            self.gamma * Q_next_max * (1 - dones_tensor)
+        )
         loss: torch.Tensor = (Q_current - Q_targets) ** 2 * weights_tensor
         return loss.mean(), Q_targets
-    
-    def _calculate_td_error(self, states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor):
-        '''
+
+    def _calculate_td_error(
+        self,
+        states_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_states_tensor,
+        dones_tensor,
+    ):
+        """
         Calculate TD error for a batch of experiences.
 
         Parameters
@@ -313,9 +382,13 @@ class DDQN:
         -------
         td_error : torch.Tensor
             The TD error for the batch of experiences.
-        '''
+        """
         # Compute Q-values for current states and actions
-        Q_current = self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+        Q_current = (
+            self.q_network(states_tensor)
+            .gather(1, actions_tensor.unsqueeze(1))
+            .squeeze(1)
+        )
 
         # Compute Q-values for next states
         Q_next = self.target_network(next_states_tensor).detach()
@@ -328,9 +401,9 @@ class DDQN:
         td_error = Q_current - Q_targets
 
         return td_error
-    
+
     def compute_td_error_from_experience(self, state, action, reward, next_state, done):
-        '''
+        """
         Compute TD error from a single experience.
 
         Parameters
@@ -350,18 +423,20 @@ class DDQN:
         -------
         td_error : float
             The TD error for the single experience.
-        '''
+        """
         state_tensor = torch.tensor([state], dtype=torch.float).to(device)
         next_state_tensor = torch.tensor([next_state], dtype=torch.float).to(device)
         action_tensor = torch.tensor([action], dtype=torch.long).to(device)
         reward_tensor = torch.tensor([reward], dtype=torch.float).to(device)
         done_tensor = torch.tensor([done], dtype=torch.int).to(device)
 
-        td_error = self._calculate_td_error(state_tensor, action_tensor, reward_tensor, next_state_tensor, done_tensor)
+        td_error = self._calculate_td_error(
+            state_tensor, action_tensor, reward_tensor, next_state_tensor, done_tensor
+        )
         return td_error.item()
-    
+
     def update_priorities(self, indices: np.ndarray, errors: np.ndarray) -> None:
-        '''
+        """
         Update the priorities of the replay buffer.
 
         Parameters
@@ -370,44 +445,46 @@ class DDQN:
             The indices of the samples.
         errors : np.ndarray
             The errors for the samples.
-        '''
+        """
         self.memory.update_priorities(indices, errors)
-        
+
     def update_target_network(self):
-        '''
+        """
         Soft update of the target network's weights.
-        '''
-        for target_param, local_param in zip(self.target_network.parameters(), self.q_network.parameters()):
-            target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
+        """
+        for target_param, local_param in zip(
+            self.target_network.parameters(), self.q_network.parameters()
+        ):
+            target_param.data.copy_(
+                self.tau * local_param.data + (1.0 - self.tau) * target_param.data
+            )
 
     def update_epsilon(self):
-        '''
+        """
         Decay epsilon used for epsilon-greedy policy.
-        '''
+        """
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def save_model(self, filename: str):
-        '''
+        """
         Save the model.
 
         Parameters
         ----------
         filename : str
             The filename to save the model to.
-        '''
+        """
         torch.save(self.q_network.state_dict(), filename)
 
     def load_model(self, filename: str):
-        '''
+        """
         Load the model.
 
         Parameters
         ----------
         filename : str
             The filename to load the model from.
-        '''
+        """
         self.q_network.load_state_dict(torch.load(filename))
         self.target_network.load_state_dict(torch.load(filename))
-
-        
