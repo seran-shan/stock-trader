@@ -194,15 +194,13 @@ class DDQN:
         else: # exploration
             return np.random.choice(np.arange(self.action_size))
         
-    def replay(self, batch_size: int) -> None:
+    def replay(self, batch_size: int = None) -> None:
         '''
         Experience replay with prioritized replay buffer.
-
-        Parameters
-        ----------
-        batch_size : int
-            The batch size for training.
         '''
+
+        batch_size = self.config['batch_size'] if batch_size is None else batch_size
+
         if len(self.memory.buffer) < batch_size:
             return
 
@@ -215,7 +213,8 @@ class DDQN:
         nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1)
         self.optimizer.step()
 
-        errors = torch.abs(Q_targets - self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)).data.cpu().numpy()
+        td_error, errors = self.calculate_td_error(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor)
+
         self.update_priorities(indices, errors)
 
         self.update_epsilon()
@@ -293,6 +292,33 @@ class DDQN:
         Q_targets: torch.Tensor = rewards_tensor + (self.gamma * Q_next_max * (1 - dones_tensor))
         loss: torch.Tensor = (Q_current - Q_targets) ** 2 * weights_tensor
         return loss.mean(), Q_targets
+    
+    def calculate_td_error(self, states: np.ndarray, actions: np.ndarray, rewards: np.ndarray, next_state: np.ndarray, dones: np.ndarray) -> float:
+        '''
+        Calculate the TD error for the samples from the replay buffer.
+
+        Parameters
+        ----------
+        states : np.ndarray
+            The state from the replay buffer.
+        actions : np.ndarray
+            The actions from the replay buffer.
+        rewards : np.ndarray
+            The rewards from the replay buffer.
+        next_state : np.ndarray
+            The next state from the replay buffer.
+        dones : np.ndarray
+            The dones from the replay buffer.
+        '''
+        current_Q_values: torch.Tensor = self.q_network(states).gather(1, actions.unsqueeze(-1)).squeeze(-1)
+
+        next_Q_values: torch.Tensor = self.target_network(next_state).detach().max(1)[0]
+
+        expected_Q_values: torch.Tensor = rewards + (self.gamma * next_Q_values * (1 - dones))
+
+        td_error: torch.Tensor = current_Q_values - expected_Q_values
+
+        return td_error, td_error.abs().cpu().detach().numpy()
     
     def update_priorities(self, indices: np.ndarray, errors: np.ndarray) -> None:
         '''

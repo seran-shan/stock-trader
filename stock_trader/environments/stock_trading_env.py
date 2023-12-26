@@ -118,7 +118,7 @@ class StockTradingEnv(gym.Env):
         self.history = {}
         self.truncated = False
 
-    def reset(self, *_args, **kwargs) -> np.array:
+    def reset(self, *_args, **kwargs) -> tuple[np.array, dict[str, float]]:
         '''
         Reset the state of the environment to an initial state.
 

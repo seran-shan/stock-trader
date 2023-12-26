@@ -4,6 +4,7 @@ This is the main file for the stock trading trainer.
 from typing import Any
 import argparse
 import yaml
+from stock_trader.agents.ddqn import DDQN
 import yfinance as yf
 import pandas as pd
 
@@ -74,14 +75,35 @@ def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str)
 
     env = StockTradingEnv(df, config['window_size'], frame_bound, render_mode)
 
+    # Initialize DDQN agent
+    state_size = env.observation_space.shape[0] * env.observation_space.shape[1]
+    action_size = env.action_space.n
+    agent = DDQN(state_size, action_size, config["agent"])
+
     for episode in range(num_episodes):
         observation, info = env.reset()
         done = False
 
         while not done:
+            # Flatten the observation to fit the DDQN input
+            observation_flat = observation.flatten()
+
             # Random action as an example, replace with DDQN decided action
-            action = env.action_space.sample()
-            observation, reward, done, truncated, info = env.step(action)
+            action = agent.act(observation_flat)
+            next_observation, reward, done, truncated, info = env.step(action)
+
+            # Use a high placeholder error for new experiences
+            placeholder_error = 1.0
+            # Store the experience in the replay buffer
+            agent.memory.add(error=placeholder_error, sample=(observation_flat, action, reward, next_observation.flatten(), done))
+
+            agent.replay()
+
+            # Update the target network
+            # if episeode % config["agent"]["update_target_network_frequency"] == 0:
+            agent.update_target_network()
+
+            observation = next_observation
 
             if truncated:
                 break
@@ -106,9 +128,7 @@ def main() -> None:
     '''
     The main function for the stock trading trainer.
     '''
-    args = parse_arguments()
-    stock_ticker = args[0]
-    render_mode = args[1]
+    stock_ticker, render_mode = parse_arguments()
     config = load_config()
     run_environment(config, stock_ticker, render_mode)
 

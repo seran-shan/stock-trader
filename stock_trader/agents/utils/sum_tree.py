@@ -101,3 +101,14 @@ class SumTree:
             The total priority of the sum tree.
         '''
         return self.tree[0]
+    
+    def __len__(self) -> int:
+        '''
+        Get the length of the sum tree.
+
+        Returns
+        -------
+        int
+            The length of the sum tree.
+        '''
+        return len(self.buffer)
