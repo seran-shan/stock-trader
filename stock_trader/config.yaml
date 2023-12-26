@@ -6,3 +6,18 @@ window_size: 10
 
 ## Configuration for training
 num_episodes: 10
+
+## Configuration for agent
+agent:
+  name: DDQNAgent
+  alpha: 0.1
+  epsilon: 1.0
+  epsilon_min: 0.01
+  epsilon_decay: 0.995
+  gamma: 0.95
+  learning_rate: 0.001
+  batch_size: 32
+  memory_size: 1000
+  train_start: 1000
+  model_path: ./model/model.h5
+  target_model_path: ./model/target_model.h5
