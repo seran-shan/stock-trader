@@ -213,8 +213,7 @@ class DDQN:
         nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1)
         self.optimizer.step()
 
-        td_error, errors = self.calculate_td_error(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor)
-
+        errors = torch.abs(Q_targets - self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)).data.cpu().numpy()
         self.update_priorities(indices, errors)
 
         self.update_epsilon()
@@ -293,32 +292,73 @@ class DDQN:
         loss: torch.Tensor = (Q_current - Q_targets) ** 2 * weights_tensor
         return loss.mean(), Q_targets
     
-    def calculate_td_error(self, states: np.ndarray, actions: np.ndarray, rewards: np.ndarray, next_state: np.ndarray, dones: np.ndarray) -> float:
+    def _calculate_td_error(self, states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor):
         '''
-        Calculate the TD error for the samples from the replay buffer.
+        Calculate TD error for a batch of experiences.
 
         Parameters
         ----------
-        states : np.ndarray
-            The state from the replay buffer.
-        actions : np.ndarray
+        states_tensor : torch.Tensor
+            The states from the replay buffer.
+        actions_tensor : torch.Tensor
             The actions from the replay buffer.
-        rewards : np.ndarray
+        rewards_tensor : torch.Tensor
             The rewards from the replay buffer.
+        next_states_tensor : torch.Tensor
+            The next states from the replay buffer.
+        dones_tensor : torch.Tensor
+            The dones from the replay buffer.
+
+        Returns
+        -------
+        td_error : torch.Tensor
+            The TD error for the batch of experiences.
+        '''
+        # Compute Q-values for current states and actions
+        Q_current = self.q_network(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+
+        # Compute Q-values for next states
+        Q_next = self.target_network(next_states_tensor).detach()
+        Q_next_max = Q_next.max(1)[0]
+
+        # Compute expected Q-values
+        Q_targets = rewards_tensor + (self.gamma * Q_next_max * (1 - dones_tensor))
+
+        # Compute TD error
+        td_error = Q_current - Q_targets
+
+        return td_error
+    
+    def compute_td_error_from_experience(self, state, action, reward, next_state, done):
+        '''
+        Compute TD error from a single experience.
+
+        Parameters
+        ----------
+        state : np.ndarray
+            The state from the replay buffer.
+        action : int
+            The action from the replay buffer.
+        reward : float
+            The reward from the replay buffer.
         next_state : np.ndarray
             The next state from the replay buffer.
-        dones : np.ndarray
-            The dones from the replay buffer.
+        done : bool
+            The done from the replay buffer.
+
+        Returns
+        -------
+        td_error : float
+            The TD error for the single experience.
         '''
-        current_Q_values: torch.Tensor = self.q_network(states).gather(1, actions.unsqueeze(-1)).squeeze(-1)
+        state_tensor = torch.tensor([state], dtype=torch.float).to(device)
+        next_state_tensor = torch.tensor([next_state], dtype=torch.float).to(device)
+        action_tensor = torch.tensor([action], dtype=torch.long).to(device)
+        reward_tensor = torch.tensor([reward], dtype=torch.float).to(device)
+        done_tensor = torch.tensor([done], dtype=torch.int).to(device)
 
-        next_Q_values: torch.Tensor = self.target_network(next_state).detach().max(1)[0]
-
-        expected_Q_values: torch.Tensor = rewards + (self.gamma * next_Q_values * (1 - dones))
-
-        td_error: torch.Tensor = current_Q_values - expected_Q_values
-
-        return td_error, td_error.abs().cpu().detach().numpy()
+        td_error = self._calculate_td_error(state_tensor, action_tensor, reward_tensor, next_state_tensor, done_tensor)
+        return td_error.item()
     
     def update_priorities(self, indices: np.ndarray, errors: np.ndarray) -> None:
         '''

@@ -5,7 +5,8 @@ initial_cash: 10000
 window_size: 10
 
 ## Configuration for training
-num_episodes: 10
+num_episodes: 100
+save_interval: 10 # Save model every 10 episodes
 
 ## Configuration for agent
 agent:
@@ -26,5 +27,6 @@ agent:
   target_update_freq: 100 # Update target network every 100 steps
   learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
   learning_rate_decay: 0.9 # Learning rate decay factor
-  model_path: ./model/model.h5
-  target_model_path: ./model/target_model.h5
+  model_name: model_10.h5
+  model_path: stock_trader/models/
+  target_model_path: stock_trader/models/target_model.h5

@@ -12,20 +12,21 @@ from environments.stock_trading_env import StockTradingEnv
 from stock_trader.agents.ddqn import DDQN
 
 
-def parse_arguments() -> tuple[str, str]:
+def parse_arguments() -> tuple[str, str, bool]:
     """
     Parse command line arguments.
 
     Returns
     -------
-    tuple[str, str]
-        The stock ticker to train on and the render mode for the environment.
+    tuple[str, str, bool]
+        The stock ticker to train on, the render mode for the environment, and the training flag.
     """
     parser = argparse.ArgumentParser(description="Stock Trading Trainer")
     parser.add_argument('--stock_ticker', type=str, default="AAPL", help='Stock ticker to train on (e.g., AAPL, MSFT)')
     parser.add_argument('--render_mode', type=str, default=None, help='Render mode for the environment (e.g., human, none)')
+    parser.add_argument('--train', action='store_true', help='Train the model if this flag is set, otherwise load the model')
     args = parser.parse_args()
-    return args.stock_ticker, args.render_mode
+    return args
 
 def load_config() -> dict[str, Any]:
     '''
@@ -56,7 +57,7 @@ def load_data(stock_ticker: str) -> pd.DataFrame:
     data = yf.download(stock_ticker, start='2020-01-01', end='2021-01-01')
     return data
 
-def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str) -> None:
+def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str, train: bool) -> None:
     """
     Run the stock trading environment.
 
@@ -93,10 +94,10 @@ def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str)
             action = agent.act(observation_flat)
             next_observation, reward, done, truncated, info = env.step(action)
 
-            # Use a high placeholder error for new experiences
-            placeholder_error = 1.0
+            # Calculate the TD error
+            td_error = agent.compute_td_error_from_experience(observation_flat, action, reward, next_observation.flatten(), done)
             # Store the experience in the replay buffer
-            agent.memory.add(error=placeholder_error, sample=(observation_flat, action, reward, next_observation.flatten(), done))
+            agent.memory.add(error=td_error, sample=(observation_flat, action, reward, next_observation.flatten(), done))
 
             agent.replay()
 
@@ -108,6 +109,9 @@ def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str)
 
             if truncated:
                 break
+
+        if (episode + 1) % config["save_interval"] == 0:  # save_interval can be a parameter in your config
+            agent.save_model(f'{config["agent"]["model_path"]}model_{episode + 1}.h5')
 
         print(colored(f"===== Episode Summary =====", 'cyan'))
         print(colored(f"Episode: {episode + 1}", 'cyan'))
@@ -133,9 +137,16 @@ def main() -> None:
     '''
     The main function for the stock trading trainer.
     '''
-    stock_ticker, render_mode = parse_arguments()
+    args = parse_arguments()
     config = load_config()
-    run_environment(config, stock_ticker, render_mode)
+
+    # Load or train the model based on the `train` argument
+    if args.train:
+        print("Training mode activated. The model will be saved after training.")
+        run_environment(config, args.stock_ticker, args.render_mode, args.train)
+    else:
+        print("Loading the trained model for evaluation.")
+        run_environment(config, args.stock_ticker, args.render_mode, args.train)
 
     # Uncomment to download data
     # download_data('AAPL')
