@@ -19,16 +19,13 @@ class Actions(Enum):
 
     Attributes
     ----------
-    HOLD : int
-        Hold the current position.
     BUY : int
         Buy the stock.
     SELL : int
         Sell the stock.
     '''
-    HOLD = 0
+    SELL = 0
     BUY = 1
-    SELL = 2
 
 class Positions(Enum):
     '''
