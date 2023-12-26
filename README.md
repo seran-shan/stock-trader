@@ -37,3 +37,9 @@ poetry shell
 ```sh
 python3 stock_trader/main.py
 ```
+
+3.1. Run the application with arguments:
+
+```sh
+python3 stock_trader/main.py --render_mode=human --stock_ticker=AAPL
+```

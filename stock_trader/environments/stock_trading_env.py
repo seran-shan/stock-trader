@@ -203,11 +203,11 @@ class StockTradingEnv(gym.Env):
             self.history[key].append(info[key])
 
         if self.render_mode == "human":
-            self.render()
+            self.render(self.render_mode)
 
         return observation, step_reward, False, self.truncated, info
 
-    def render(self, mode: str = 'human') -> None:
+    def render(self, mode: str | None = None) -> None:
         '''
         Render the environment to the screen.
 
@@ -216,8 +216,8 @@ class StockTradingEnv(gym.Env):
         mode : str
             The mode to render the environment in.
         '''
-        if mode != 'human':
-            raise NotImplementedError("Only human rendering is supported atm.")
+        if self.render_mode == None:
+            return
 
         def plot_position(position: Positions, step: int) -> None:
             '''

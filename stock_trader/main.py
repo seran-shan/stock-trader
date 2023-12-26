@@ -3,12 +3,13 @@ This is the main file for the stock trading trainer.
 '''
 from typing import Any
 import argparse
+from termcolor import colored
 import yaml
-from stock_trader.agents.ddqn import DDQN
 import yfinance as yf
 import pandas as pd
 
 from environments.stock_trading_env import StockTradingEnv
+from stock_trader.agents.ddqn import DDQN
 
 
 def parse_arguments() -> tuple[str, str]:
@@ -22,7 +23,7 @@ def parse_arguments() -> tuple[str, str]:
     """
     parser = argparse.ArgumentParser(description="Stock Trading Trainer")
     parser.add_argument('--stock_ticker', type=str, default="AAPL", help='Stock ticker to train on (e.g., AAPL, MSFT)')
-    parser.add_argument('--render_mode', type=str, default='human', help='Render mode for the environment (e.g., human, none)')
+    parser.add_argument('--render_mode', type=str, default=None, help='Render mode for the environment (e.g., human, none)')
     args = parser.parse_args()
     return args.stock_ticker, args.render_mode
 
@@ -108,7 +109,11 @@ def run_environment(config: dict[str, Any], stock_ticker: str, render_mode: str)
             if truncated:
                 break
 
-        print(f"Episode: {episode + 1}, Total Reward: {info['total_reward']}, Total Profit: {info['total_profit']}")
+        print(colored(f"===== Episode Summary =====", 'cyan'))
+        print(colored(f"Episode: {episode + 1}", 'cyan'))
+        print(colored(f"Total Reward: {info['total_reward']:.2f}", 'magenta'))
+        print(colored(f"Total Profit: {info['total_profit']:.2f}", 'blue'))
+        print(colored("==========================================", 'cyan'))
 
     env.close()
 
