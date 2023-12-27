@@ -3,22 +3,24 @@ This is the main file for the stock trading trainer.
 """
 from typing import Any
 import argparse
+import signal
 from termcolor import colored
 import yaml
 import yfinance as yf
 import pandas as pd
 
+# pylint: disable=import-error
 from environments.stock_trading_env import StockTradingEnv
 from stock_trader.agents.ddqn import DDQN
 
 
-def parse_arguments() -> tuple[str, str, bool]:
+def parse_arguments() -> argparse.Namespace:
     """
     Parse command line arguments.
 
     Returns
     -------
-    tuple[str, str, bool]
+    argparse.Namespace
         The stock ticker to train on, the render mode for the environment, and the training flag.
     """
     parser = argparse.ArgumentParser(description="Stock Trading Trainer")
@@ -74,11 +76,9 @@ def load_data(stock_ticker: str) -> pd.DataFrame:
     return data
 
 
-def run_environment(
-    config: dict[str, Any], stock_ticker: str, render_mode: str, train: bool
-) -> None:
+def train(config, stock_ticker, render_mode):
     """
-    Run the stock trading environment.
+    Train the model.
 
     Parameters
     ----------
@@ -101,7 +101,16 @@ def run_environment(
     action_size = env.action_space.n
     agent = DDQN(state_size, action_size, config["agent"])
 
+    def save_model(sig, frame):
+        print("Saving model due to interruption...")
+        agent.save_model(f'{config["agent"]["model_path"]}interrupted_model.h5')
+        exit(0)
+
+    signal.signal(signal.SIGINT, save_model)
+
     for episode in range(num_episodes):
+        total_reward = 0
+        total_profit = 0
         observation, info = env.reset()
         done = False
 
@@ -134,22 +143,70 @@ def run_environment(
             # Update the target network
             # if episeode % config["agent"]["update_target_network_frequency"] == 0:
             agent.update_target_network()
-
             observation = next_observation
+
+            total_reward += reward
+            total_profit = info.get("total_profit", total_profit)
 
             if truncated:
                 break
 
-        if (episode + 1) % config[
-            "save_interval"
-        ] == 0:  # save_interval can be a parameter in your config
+        if (episode + 1) % config["save_interval"] == 0:
             agent.save_model(f'{config["agent"]["model_path"]}model_{episode + 1}.h5')
 
-        print(colored(f"===== Episode Summary =====", "cyan"))
-        print(colored(f"Episode: {episode + 1}", "cyan"))
-        print(colored(f"Total Reward: {info['total_reward']:.2f}", "magenta"))
-        print(colored(f"Total Profit: {info['total_profit']:.2f}", "blue"))
+        print(colored(f"===== Episode {episode + 1} Summary =====", "cyan"))
+        print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
+        print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
         print(colored("==========================================", "cyan"))
+
+    env.close()
+
+
+def evaluate(config, stock_ticker, render_mode):
+    """
+    Evaluate the trained model.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        The configuration for the stock trading environment.
+    stock_ticker : str
+        The stock ticker to train on.
+    render_mode : str
+        The render mode for the environment.
+    """
+    df = load_data(stock_ticker)
+    window_size = config["window_size"]
+    frame_bound = (window_size, len(df))
+
+    env = StockTradingEnv(df, config["window_size"], frame_bound, render_mode)
+
+    state_size = env.observation_space.shape[0] * env.observation_space.shape[1]
+    action_size = env.action_space.n
+
+    agent = DDQN(state_size, action_size, config["agent"])
+    agent.load_model(config["agent"]["model_path"])  # Ensure the model path is correct
+
+    total_reward = 0
+    total_profit = 0
+    observation, info = env.reset()
+
+    while True:
+        action = agent.act(observation.flatten())
+        next_observation, reward, done, truncated, info = env.step(action)
+
+        total_reward += reward
+        total_profit = info.get("total_profit", total_profit)
+
+        observation = next_observation
+
+        if truncated or done:
+            break
+
+    print(colored(f"===== Evaluation Summary =====", "cyan"))
+    print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
+    print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
+    print(colored("==========================================", "cyan"))
 
     env.close()
 
@@ -177,10 +234,10 @@ def main() -> None:
     # Load or train the model based on the `train` argument
     if args.train:
         print("Training mode activated. The model will be saved after training.")
-        run_environment(config, args.stock_ticker, args.render_mode, args.train)
+        train(config, args.stock_ticker, args.render_mode)
     else:
         print("Loading the trained model for evaluation.")
-        run_environment(config, args.stock_ticker, args.render_mode, args.train)
+        evaluate(config, args.stock_ticker, args.render_mode)
 
     # Uncomment to download data
     # download_data('AAPL')
