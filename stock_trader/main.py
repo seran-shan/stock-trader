@@ -68,21 +68,25 @@ def load_config() -> dict[str, Any]:
         return yaml.safe_load(file)
 
 
-def load_data(stock_ticker: str) -> pd.DataFrame:
+def load_data(config: dict, stock_ticker: str = None) -> pd.DataFrame:
     """
     Load the data for the stock trading environment.
 
     Parameters
     ----------
-    stock_ticker : str
-        The stock ticker to train on.
+    config : dict[str, Any]
+        The configuration for the stock trading environment.
 
     Returns
     -------
     data : pd.DataFrame
         The data for the stock trading environment.
     """
-    data = yf.download(stock_ticker, start="2020-01-01", end="2021-01-01")
+    data = yf.download(
+        stock_ticker or config["stock_ticker"],
+        start=config["start_date"],
+        end=config["end_date"],
+    )
     return data
 
 
@@ -99,7 +103,7 @@ def train(config, stock_ticker, render_mode):
     render_mode : str
         The render mode for the environment.
     """
-    df = load_data(stock_ticker)
+    df = load_data(config, stock_ticker)
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
     num_episodes = config["num_episodes"]
@@ -123,6 +127,8 @@ def train(config, stock_ticker, render_mode):
         total_profit = 0
         observation, info = env.reset()
         done = False
+
+        losses = []
 
         while not done:
             # Flatten the observation to fit the DDQN input
@@ -148,7 +154,9 @@ def train(config, stock_ticker, render_mode):
                 ),
             )
 
-            agent.replay()
+            loss = agent.replay()
+            if loss is not None:
+                losses.append(loss)
 
             # Update the target network
             # if episeode % config["agent"]["update_target_network_frequency"] == 0:
@@ -167,7 +175,8 @@ def train(config, stock_ticker, render_mode):
         print(colored(f"===== Episode {episode + 1} Summary =====", "cyan"))
         print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
         print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
-        print(colored("==========================================", "cyan"))
+        print(colored("==============================", "cyan"))
+        print(colored(f"Average Loss: {sum(losses) / len(losses):.2f}\n", "red"))
 
     env.close()
 
@@ -185,7 +194,7 @@ def evaluate(config, stock_ticker, render_mode):
     render_mode : str
         The render mode for the environment.
     """
-    df = load_data(stock_ticker)
+    df = load_data(config, stock_ticker) if stock_ticker else load_data(config)
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
 
@@ -195,7 +204,7 @@ def evaluate(config, stock_ticker, render_mode):
     action_size = env.action_space.n
 
     agent = DDQN(state_size, action_size, config["agent"])
-    agent.load_model(config["agent"]["model_path"])  # Ensure the model path is correct
+    agent.load_model(config["agent"]["model_path"] + config["agent"]["model_name"])
 
     total_reward = 0
     total_profit = 0
@@ -216,7 +225,7 @@ def evaluate(config, stock_ticker, render_mode):
     print(colored(f"===== Evaluation Summary =====", "cyan"))
     print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
     print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
-    print(colored("==========================================", "cyan"))
+    print(colored("==============================", "cyan"))
 
     env.close()
 

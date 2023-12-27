@@ -1,7 +1,11 @@
+"""
+Double Deep Q-Learning Network (DDQN) agent.
+"""
 import numpy as np
 import torch
 import torch.nn as nn
 
+# pylint: disable=import-error
 from agents.utils.sum_tree import SumTree
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -200,7 +204,7 @@ class DDQN:
         else:  # exploration
             return np.random.choice(np.arange(self.action_size))
 
-    def replay(self, batch_size: int = None) -> None:
+    def replay(self, batch_size: int = None) -> float:
         """
         Experience replay with prioritized replay buffer.
         """
@@ -247,6 +251,8 @@ class DDQN:
         self.update_epsilon()
 
         self.scheduler.step()
+
+        return loss.item()
 
     def _sample_from_memory(
         self, batch_size: int
