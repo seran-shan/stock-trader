@@ -6,7 +6,7 @@ window_size: 10
 
 ## Configuration for training
 num_episodes: 100
-save_interval: 10 # Save model every 10 episodes
+save_interval: 10
 
 ## Configuration for agent
 agent:
@@ -15,15 +15,15 @@ agent:
   hidden_sizes: [64, 64] # Example: two hidden layers with 64 neurons each
   alpha: 0.1 # Degree of prioritization in replay buffer
   beta: 0.4 # Initial value for importance-sampling weight
-  epsilon: 1.0
-  epsilon_min: 0.01
-  epsilon_decay: 0.995
-  gamma: 0.95
+  epsilon: 1.0 # Initial value for epsilon
+  epsilon_min: 0.01 # Minimum value for epsilon
+  epsilon_decay: 0.995 # Decay rate for epsilon
+  gamma: 0.95 # Discount factor, determines importance of future rewards
   tau: 0.001 # Rate of soft updating target network
-  learning_rate: 0.001
-  batch_size: 32
-  buffer_size: 1000
-  train_start: 1000
+  learning_rate: 0.001 # Learning rate for optimizer
+  batch_size: 32 # Batch size for training
+  buffer_size: 1000 # Size of replay buffer
+  train_start: 1000 # Start training after 1000 steps
   target_update_freq: 100 # Update target network every 100 steps
   learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
   learning_rate_decay: 0.9 # Learning rate decay factor
