@@ -9,9 +9,10 @@ save_interval: 10
 
 ## Configuration for data
 stock_ticker: AAPL
-start_date: 2017-01-01
+start_date: 2019-01-01
 end_date: 2020-01-01
 data_path: stock_trader/data/
+losses_plot_path: stock_trader/plots/losses/
 
 ## Configuration for agent
 agent:
@@ -32,6 +33,6 @@ agent:
   target_update_freq: 100 # Update target network every 100 steps
   learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
   learning_rate_decay: 0.9 # Learning rate decay factor
-  model_name: model_10.h5
+  model_name: model_100.pt
   model_path: stock_trader/models/
-  target_model_path: stock_trader/models/target_model.h5
+  target_model_path: stock_trader/models/target_model.pt
