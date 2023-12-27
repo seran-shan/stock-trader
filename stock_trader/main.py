@@ -3,11 +3,13 @@ This is the main file for the stock trading trainer.
 """
 from typing import Any
 import argparse
+import matplotlib.pyplot as plt
 import signal
+import pandas as pd
+import time
 from termcolor import colored
 import yaml
 import yfinance as yf
-import pandas as pd
 
 # pylint: disable=import-error
 from environments.stock_trading_env import StockTradingEnv
@@ -90,6 +92,25 @@ def load_data(config: dict, stock_ticker: str = None) -> pd.DataFrame:
     return data
 
 
+def plot_loss(episode_losses: list, saving_path: str):
+    """
+    Plot the loss per episode.
+
+    Parameters
+    ----------
+    episode_losses : list[float]
+        The losses per episode.
+    """
+    plt.figure(figsize=(10, 5))
+    plt.plot(episode_losses, label="Loss per Episode")
+    plt.xlabel("Episodes")
+    plt.ylabel("Average Loss")
+    plt.title("Training Loss Over Time")
+    plt.legend()
+    plt.savefig(saving_path)
+    plt.close()
+
+
 def train(config, stock_ticker, render_mode):
     """
     Train the model.
@@ -117,10 +138,12 @@ def train(config, stock_ticker, render_mode):
 
     def save_model(sig, frame):
         print("Saving model due to interruption...")
-        agent.save_model(f'{config["agent"]["model_path"]}interrupted_model.h5')
+        agent.save_model(f'{config["agent"]["model_path"]}interrupted_model.pt')
         exit(0)
 
     signal.signal(signal.SIGINT, save_model)
+
+    episode_losses = []  # List to store average loss per episode
 
     for episode in range(num_episodes):
         total_reward = 0
@@ -169,16 +192,24 @@ def train(config, stock_ticker, render_mode):
             if truncated:
                 break
 
+        # Calculating and storing average loss for the episode
+        average_loss = sum(losses) / len(losses) if losses else 0
+        episode_losses.append(average_loss)
+
         if (episode + 1) % config["save_interval"] == 0:
-            agent.save_model(f'{config["agent"]["model_path"]}model_{episode + 1}.h5')
+            agent.save_model(f'{config["agent"]["model_path"]}model_{episode + 1}.pt')
 
         print(colored(f"===== Episode {episode + 1} Summary =====", "cyan"))
         print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
         print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
         print(colored("==============================", "cyan"))
-        print(colored(f"Average Loss: {sum(losses) / len(losses):.2f}\n", "red"))
+        print(colored(f"Average Loss: {average_loss:.2f}\n", "red"))
 
     env.close()
+    plot_loss(
+        episode_losses,
+        config["losses_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
+    )
 
 
 def evaluate(config, stock_ticker, render_mode):
