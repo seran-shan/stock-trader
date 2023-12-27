@@ -493,4 +493,7 @@ class DDQN:
             The filename to load the model from.
         """
         self.q_network.load_state_dict(torch.load(filename))
+        self.q_network.eval()
+
         self.target_network.load_state_dict(torch.load(filename))
+        self.target_network.eval()
