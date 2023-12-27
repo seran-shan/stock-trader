@@ -1,12 +1,17 @@
 # Description: Configuration file for stock_trader
 
-## Configuration for training environment
-initial_cash: 10000
+## Configuration for environment
 window_size: 10
 
 ## Configuration for training
 num_episodes: 100
 save_interval: 10
+
+## Configuration for data
+stock_ticker: AAPL
+start_date: 2017-01-01
+end_date: 2020-01-01
+data_path: stock_trader/data/
 
 ## Configuration for agent
 agent:
