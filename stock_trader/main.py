@@ -41,6 +41,16 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Train the model if this flag is set, otherwise load the model",
     )
+    parser.add_argument(
+        "--download_data",
+        action="store_true",
+        help="Download the data for the stock ticker if this flag is set",
+    )
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Evaluate the model if this flag is set, otherwise train the model",
+    )
     args = parser.parse_args()
     return args
 
@@ -235,12 +245,16 @@ def main() -> None:
     if args.train:
         print("Training mode activated. The model will be saved after training.")
         train(config, args.stock_ticker, args.render_mode)
-    else:
+    elif args.evaluate:
         print("Loading the trained model for evaluation.")
         evaluate(config, args.stock_ticker, args.render_mode)
-
-    # Uncomment to download data
-    # download_data('AAPL')
+    elif args.download_data:
+        print("Downloading data for the stock ticker.")
+        download_data(args.stock_ticker)
+    else:
+        raise ValueError(
+            "Please specify either the `train`, `evaluate`, or `download_data` flag."
+        )
 
 
 if __name__ == "__main__":
