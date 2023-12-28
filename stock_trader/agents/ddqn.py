@@ -39,6 +39,19 @@ class DNN(nn.Module):
         self.output_layer = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the neural network.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input to the neural network.
+
+        Returns
+        -------
+        torch.Tensor
+            The output of the neural network.
+        """
         x = self.relu(self.layer1(x))
         x = self.relu(self.layer2(x))
         x = self.output_layer(x)
@@ -231,7 +244,7 @@ class DDQN:
             next_states_tensor,
             dones_tensor,
         ) = self._unpack_samples(samples)
-        loss, Q_targets = self._compute_loss(
+        loss, q_targets = self._compute_loss(
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -248,7 +261,7 @@ class DDQN:
 
         errors = (
             torch.abs(
-                Q_targets
+                q_targets
                 - self.q_network(states_tensor)
                 .gather(1, actions_tensor.unsqueeze(1))
                 .squeeze(1)
@@ -360,7 +373,7 @@ class DDQN:
         torch.Tensor
             The loss for the samples from the replay buffer.
         """
-        Q_current: torch.Tensor = (
+        q_current: torch.Tensor = (
             self.q_network(states_tensor)
             .gather(1, actions_tensor.unsqueeze(1))
             .squeeze(1)
@@ -368,15 +381,15 @@ class DDQN:
 
         best_actions = self.q_network(next_states_tensor).detach().max(1)[1]
 
-        Q_next: torch.Tensor = self.target_network(next_states_tensor).detach()
-        Q_next_max = Q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
+        q_next: torch.Tensor = self.target_network(next_states_tensor).detach()
+        q_next_max = q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
 
-        Q_targets: torch.Tensor = rewards_tensor + (
-            self.gamma * Q_next_max * (1 - dones_tensor)
+        q_targets: torch.Tensor = rewards_tensor + (
+            self.gamma * q_next_max * (1 - dones_tensor)
         )
 
-        loss: torch.Tensor = (Q_current - Q_targets) ** 2 * weights_tensor
-        return loss.mean(), Q_targets
+        loss: torch.Tensor = (q_current - q_targets) ** 2 * weights_tensor
+        return loss.mean(), q_targets
 
     def calculate_q_value_diff(self, state: np.ndarray) -> None:
         """
@@ -427,7 +440,7 @@ class DDQN:
         done_tensor = torch.from_numpy(np.array([done])).long().to(device)
 
         # Compute Q-values for current states and actions
-        Q_current = (
+        q_current = (
             self.q_network(state_tensor)
             .gather(1, action_tensor.unsqueeze(1))
             .squeeze(1)
@@ -437,14 +450,14 @@ class DDQN:
         best_actions = self.q_network(next_state_tensor).detach().max(1)[1]
 
         # Compute Q-values for next states
-        Q_next = self.target_network(next_state_tensor).detach()
-        Q_next_max = Q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
+        q_next = self.target_network(next_state_tensor).detach()
+        q_next_max = q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
 
         # Compute expected Q-values
-        Q_targets = reward_tensor + (self.gamma * Q_next_max * (1 - done_tensor))
+        q_targets = reward_tensor + (self.gamma * q_next_max * (1 - done_tensor))
 
         # Compute TD error
-        td_error = Q_current - Q_targets
+        td_error = q_current - q_targets
 
         return td_error.item()
 
@@ -520,14 +533,16 @@ class DDQN:
 
     def log_metrics(
         self,
-        episode,
-        reward,
-        epsilon,
-        lr,
-        q_values,
-        action_distribution,
-        td_error,
-        loss,
+        episode: int,
+        reward: float,
+        epsilon: float,
+        lr: float,
+        q_values: np.ndarray,
+        action_distribution: np.ndarray,
+        td_error: float,
+        loss: float,
+        average_q_value_diff: float,
+        episode_length: int,
     ):
         """
         Log metrics to TensorBoard.
@@ -550,6 +565,8 @@ class DDQN:
             The current TD error.
         loss : float
             The current loss.
+        average_q_value_diff : float
+            The average Q-value difference.
         """
         self.writer.add_scalar("Reward/episode", reward, episode)
         self.writer.add_scalar("Epsilon/episode", epsilon, episode)
@@ -560,6 +577,10 @@ class DDQN:
         )
         self.writer.add_scalar("TD Error/episode", td_error, episode)
         self.writer.add_scalar("Loss/episode", loss, episode)
+        self.writer.add_histogram(
+            "Q Value Differences/episode", average_q_value_diff, episode
+        )
+        self.writer.add_scalar("Episode Length/episode", episode_length, episode)
 
     def save_model(self, filename: str):
         """

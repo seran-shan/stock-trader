@@ -3,11 +3,11 @@ This is the main file for the stock trading trainer.
 """
 from typing import Any
 import argparse
-import matplotlib.pyplot as plt
 import signal
-import numpy as np
-import pandas as pd
 import time
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 from termcolor import colored
 import yaml
 import yfinance as yf
@@ -70,7 +70,9 @@ def load_config() -> dict[str, Any]:
         return yaml.safe_load(file)
 
 
-def load_data(config: dict, stock_ticker: str = None) -> pd.DataFrame:
+def load_data(
+    config: dict, stock_ticker: str = None, train_data: bool | None = None
+) -> pd.DataFrame:
     """
     Load the data for the stock trading environment.
 
@@ -84,11 +86,23 @@ def load_data(config: dict, stock_ticker: str = None) -> pd.DataFrame:
     data : pd.DataFrame
         The data for the stock trading environment.
     """
+    start_date = (
+        config["data"]["train"]["start_date"]
+        if train_data
+        else config["data"]["test"]["start_date"]
+    )
+    end_date = (
+        config["data"]["train"]["end_date"]
+        if train_data
+        else config["data"]["test"]["end_date"]
+    )
+    interval = config["data"]["interval"]
     data = yf.download(
         stock_ticker or config["stock_ticker"],
-        start=config["start_date"],
-        end=config["end_date"],
-        interval=config["interval"],
+        start=start_date,
+        end=end_date,
+        interval=interval,
+        progress=False,
     )
     return data
 
@@ -144,7 +158,7 @@ def train(config: dict, stock_ticker: str, render: bool):
     render_mode : str
         The render mode for the environment.
     """
-    df = load_data(config, stock_ticker)
+    df = load_data(config, stock_ticker, train_data=True)
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
     num_episodes = config["num_episodes"]
@@ -170,13 +184,14 @@ def train(config: dict, stock_ticker: str, render: bool):
     for episode in range(num_episodes):
         total_reward = 0
         total_profit = 0
+        global_step = 0
         q_values = []
         action_counts = [0] * env.action_space.n
         td_errors = []
-        observation, info = env.reset()
-        done = False
-
         losses = []
+
+        done = False
+        observation, info = env.reset()
 
         while not done:
             # Flatten the observation to fit the DDQN input
@@ -219,6 +234,8 @@ def train(config: dict, stock_ticker: str, render: bool):
             action_counts[action] += 1
             td_errors.append(td_error)
 
+            global_step += 1
+
             if truncated:
                 break
 
@@ -232,6 +249,7 @@ def train(config: dict, stock_ticker: str, render: bool):
         q_values = np.array(q_values)
         td_errors = np.array(td_errors)
         action_counts = np.array(action_counts)
+        average_q_value_diff = np.array(agent.q_value_diff)
 
         # Log summary for the episode to tensorboard
         agent.log_metrics(
@@ -243,6 +261,8 @@ def train(config: dict, stock_ticker: str, render: bool):
             action_counts,
             average_td_error,
             average_loss,
+            average_q_value_diff,
+            global_step,
         )
 
         if (episode + 1) % config["save_interval"] == 0:
@@ -251,18 +271,18 @@ def train(config: dict, stock_ticker: str, render: bool):
         print(colored(f"===== Episode {episode + 1} Summary =====", "cyan"))
         print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
         print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
-        print(colored("==============================", "cyan"))
-        print(colored(f"Average Loss: {average_loss:.2f}\n", "red"))
+        print(colored(f"Average Loss: {average_loss:.2f}", "red"))
+        print(colored("==============================\n", "cyan"))
 
     env.close()
 
     plot_loss(
         episode_losses,
-        config["losses_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
+        config["data"]["losses_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
     )
     plot_q_value_differences(
         agent.q_value_diff,
-        config["q_values_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
+        config["data"]["q_values_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
     )
 
 
@@ -317,7 +337,7 @@ def evaluate(config: dict, stock_ticker: str, render: bool):
     env.close()
 
 
-def download_data(config: dict, stock_ticker: str) -> None:
+def download_data(config: dict, stock_ticker: str, train: bool | None = None) -> None:
     """
     Download the data for the stock trading environment.
 
@@ -328,9 +348,17 @@ def download_data(config: dict, stock_ticker: str) -> None:
     stock_ticker : str
         The stock ticker to train on.
     """
-    start_date = config["start_date"]
-    end_date = config["end_date"]
-    interval = config["interval"]
+    start_date = (
+        config["data"]["train"]["start_date"]
+        if train
+        else config["data"]["test"]["start_date"]
+    )
+    end_date = (
+        config["data"]["train"]["end_date"]
+        if train
+        else config["data"]["test"]["end_date"]
+    )
+    interval = config["data"]["interval"]
     data = yf.download(stock_ticker, start=start_date, end=end_date, interval=interval)
     data.to_csv(
         f"stock_trader/data/raw/"

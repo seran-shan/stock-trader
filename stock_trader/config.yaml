@@ -8,13 +8,18 @@ num_episodes: 10
 save_interval: 10
 
 ## Configuration for data
-stock_ticker: AAPL
-start_date: 2022-01-01
-end_date: 2023-01-01
-interval: 1h # 1m for minute data, 1h for hourly data, 1d for daily data, 1wk for weekly data, 1mo for monthly data
-data_path: stock_trader/data/
-losses_plot_path: stock_trader/plots/losses/
-q_values_plot_path: stock_trader/plots/q_values/
+data:
+  stock_ticker: AAPL
+  train:
+    start_date: 2022-01-01
+    end_date: 2023-01-01
+  test:
+    start_date: 2023-01-01
+    end_date: 2023-12-01
+  interval: 1h # 1m for minute data, 1h for hourly data, 1d for daily data, 1wk for weekly data, 1mo for monthly data
+  data_path: stock_trader/data/
+  losses_plot_path: stock_trader/plots/losses/
+  q_values_plot_path: stock_trader/plots/q_values/
 
 ## Configuration for agent
 agent:
@@ -36,6 +41,6 @@ agent:
   learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
   learning_rate_decay: 0.9 # Learning rate decay factor
   logs_path: stock_trader/logs/ # Path for tensorboard logs
-  model_name: model_20.pt
+  model_name: model_200.pt
   model_path: stock_trader/models/
   target_model_path: stock_trader/models/target_model.pt
