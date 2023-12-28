@@ -97,7 +97,7 @@ class PrioritedReplayBuffer:
         priority = (abs(error) + 1e-5) ** self.alpha
         self.buffer.add(priority, sample)
 
-    def sample(self, batch_size: int, beta: float = 0.4) -> tuple:
+    def sample(self, batch_size: int, beta: float) -> tuple:
         """
         Sample from the replay buffer.
 
@@ -130,7 +130,7 @@ class PrioritedReplayBuffer:
 
             value = np.random.uniform(a, b)
             index, priority, sample = self.buffer.get_leaf(value)
-            weights[i] = priority / total_priority
+            weights[i] = (priority / total_priority) ** beta
             indices[i] = index
             samples.append(sample)
 
