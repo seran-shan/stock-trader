@@ -226,3 +226,12 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,visualstudiocode
+
+# Custom files to ignore
+gym_trading_env.py
+
+# Custom folders to ignore
+**/losses/*
+**/q_values/*
+**/models/*
+**/data/*
