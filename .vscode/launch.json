@@ -1,0 +1,61 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Train",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--train"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Evaluate",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--evaluate"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Train with Rendering",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--train", "--render"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Evaluate with Rendering",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--evaluate", "--render"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Train with Custom Stock",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--train", "--stock_ticker", "AAPL"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Evaluate with Custom Stock",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--evaluate", "--stock_ticker", "AAPL"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Download Stock Data",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_trader/main.py",
+      "args": ["--download", "AAPL"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

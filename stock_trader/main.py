@@ -329,7 +329,7 @@ def evaluate(config: dict, stock_ticker: str, render: bool):
         if truncated or done:
             break
 
-    print(colored(f"===== Evaluation Summary =====", "cyan"))
+    print(colored("===== Evaluation Summary =====", "cyan"))
     print(colored(f"Total Reward: {total_reward:.2f}", "magenta"))
     print(colored(f"Total Profit: {total_profit:.2f}", "blue"))
     print(colored("==============================", "cyan"))

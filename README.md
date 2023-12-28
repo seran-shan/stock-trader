@@ -46,14 +46,20 @@ python3 stock_trader/main.py --train
 python3 stock_trader/main.py --evaluate
 ```
 
-3. Run with human mode:
+3. Run with graphical rendering:
 
 ```sh
-python3 stock_trader/main.py --render_mode human
+python3 stock_trader/main.py [--train/--evaluate] --render
 ```
 
 4. Choose own stock:
 
 ```sh
-python3 stock_trader/main.py --stock_ticker AAPL
+python3 stock_trader/main.py [--train/--evaluate] --stock_ticker AAPL
+```
+
+5. Download own stock:
+
+```sh
+python3 stock_trader/main.py --download AAPl
 ```
