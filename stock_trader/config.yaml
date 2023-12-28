@@ -1,18 +1,20 @@
 # Description: Configuration file for stock_trader
 
 ## Configuration for environment
-window_size: 10
+window_size: 60
 
 ## Configuration for training
-num_episodes: 100
+num_episodes: 10
 save_interval: 10
 
 ## Configuration for data
 stock_ticker: AAPL
-start_date: 2019-01-01
-end_date: 2020-01-01
+start_date: 2022-01-01
+end_date: 2023-01-01
+interval: 1h # 1m for minute data, 1h for hourly data, 1d for daily data, 1wk for weekly data, 1mo for monthly data
 data_path: stock_trader/data/
 losses_plot_path: stock_trader/plots/losses/
+q_values_plot_path: stock_trader/plots/q_values/
 
 ## Configuration for agent
 agent:
@@ -33,6 +35,7 @@ agent:
   target_update_freq: 100 # Update target network every 100 steps
   learning_rate_decay_steps: 10000 # Decay learning rate every 10000 steps
   learning_rate_decay: 0.9 # Learning rate decay factor
-  model_name: model_100.pt
+  logs_path: stock_trader/logs/ # Path for tensorboard logs
+  model_name: model_20.pt
   model_path: stock_trader/models/
   target_model_path: stock_trader/models/target_model.pt

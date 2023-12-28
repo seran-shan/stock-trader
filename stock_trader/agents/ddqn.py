@@ -4,6 +4,7 @@ Double Deep Q-Learning Network (DDQN) agent.
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 # pylint: disable=import-error
 from agents.utils.sum_tree import SumTree
@@ -185,6 +186,13 @@ class DDQN:
             self.optimizer, step_size=100, gamma=self.gamma
         )
 
+        # Initialize SummaryWriter
+        self.writer = SummaryWriter(config["logs_path"])
+
+        # For calculating average Q value
+        self.previous_q_value = None
+        self.q_value_diff = []
+
     def act(self, state: np.array) -> int:
         """
         Choose an action based on the current state and epsilon-greedy policy.
@@ -194,6 +202,7 @@ class DDQN:
         state : np.array
             The current state of the environment.
         """
+        self.q_network.eval()
         if np.random.rand() > self.epsilon:  # exploitation
             self.q_network.eval()
             state = torch.tensor(state, dtype=torch.float).unsqueeze(0).to(device)
@@ -231,6 +240,7 @@ class DDQN:
             weights_tensor,
         )
 
+        self.q_network.train()
         self.optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1)
@@ -295,17 +305,19 @@ class DDQN:
             The unpacked samples from the replay buffer.
         """
         states, actions, rewards, next_states, dones = zip(*samples)
-        states_tensor: torch.Tensor = torch.tensor(states, dtype=torch.float).to(device)
-        actions_tensor: torch.Tensor = torch.tensor(actions, dtype=torch.long).to(
-            device
+        states_tensor: torch.Tensor = (
+            torch.from_numpy(np.array(states)).float().to(device)
         )
-        rewards_tensor: torch.Tensor = torch.tensor(rewards, dtype=torch.float).to(
-            device
+        actions_tensor: torch.Tensor = (
+            torch.from_numpy(np.array(actions)).long().to(device)
         )
-        next_states_tensor: torch.Tensor = torch.tensor(
-            next_states, dtype=torch.float
-        ).to(device)
-        dones_tensor: torch.Tensor = torch.tensor(dones, dtype=torch.int).to(device)
+        rewards_tensor: torch.Tensor = (
+            torch.from_numpy(np.array(rewards)).float().to(device)
+        )
+        next_states_tensor: torch.Tensor = (
+            torch.from_numpy(np.array(next_states)).float().to(device)
+        )
+        dones_tensor: torch.Tensor = torch.from_numpy(np.array(dones)).int().to(device)
         return (
             states_tensor,
             actions_tensor,
@@ -325,7 +337,8 @@ class DDQN:
     ) -> torch.Tensor:
         """
         Compute the loss for the samples from the replay buffer.
-        The loss is computed as the mean squared error between the current Q values and the target Q values.
+        The loss is computed as the mean squared error between the current
+        Q values and the target Q values.
 
         Parameters
         ----------
@@ -352,61 +365,38 @@ class DDQN:
             .gather(1, actions_tensor.unsqueeze(1))
             .squeeze(1)
         )
+
+        best_actions = self.q_network(next_states_tensor).detach().max(1)[1]
+
         Q_next: torch.Tensor = self.target_network(next_states_tensor).detach()
-        Q_next_max: torch.Tensor = Q_next.max(1)[0]
+        Q_next_max = Q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
+
         Q_targets: torch.Tensor = rewards_tensor + (
             self.gamma * Q_next_max * (1 - dones_tensor)
         )
+
         loss: torch.Tensor = (Q_current - Q_targets) ** 2 * weights_tensor
         return loss.mean(), Q_targets
 
-    def _calculate_td_error(
-        self,
-        states_tensor,
-        actions_tensor,
-        rewards_tensor,
-        next_states_tensor,
-        dones_tensor,
-    ):
+    def calculate_q_value_diff(self, state: np.ndarray) -> None:
         """
-        Calculate TD error for a batch of experiences.
+        Calculate the Q-value difference between the target and local network.
 
         Parameters
         ----------
-        states_tensor : torch.Tensor
-            The states from the replay buffer.
-        actions_tensor : torch.Tensor
-            The actions from the replay buffer.
-        rewards_tensor : torch.Tensor
-            The rewards from the replay buffer.
-        next_states_tensor : torch.Tensor
-            The next states from the replay buffer.
-        dones_tensor : torch.Tensor
-            The dones from the replay buffer.
-
-        Returns
-        -------
-        td_error : torch.Tensor
-            The TD error for the batch of experiences.
+        states : np.ndarray
+            The state from the replay buffer.
         """
-        # Compute Q-values for current states and actions
-        Q_current = (
-            self.q_network(states_tensor)
-            .gather(1, actions_tensor.unsqueeze(1))
-            .squeeze(1)
-        )
+        state_tensor = torch.from_numpy(np.array([state], dtype=np.float32)).to(device)
+        with torch.no_grad():
+            current_q_values = self.q_network(state_tensor)
+            current_average_q_value = current_q_values.mean().item()
 
-        # Compute Q-values for next states
-        Q_next = self.target_network(next_states_tensor).detach()
-        Q_next_max = Q_next.max(1)[0]
+        if self.previous_q_value is not None:
+            diff = abs(current_average_q_value - self.previous_q_value)
+            self.q_value_diff.append(diff)
 
-        # Compute expected Q-values
-        Q_targets = rewards_tensor + (self.gamma * Q_next_max * (1 - dones_tensor))
-
-        # Compute TD error
-        td_error = Q_current - Q_targets
-
-        return td_error
+        self.previous_q_value = current_average_q_value
 
     def compute_td_error_from_experience(self, state, action, reward, next_state, done):
         """
@@ -430,15 +420,32 @@ class DDQN:
         td_error : float
             The TD error for the single experience.
         """
-        state_tensor = torch.tensor([state], dtype=torch.float).to(device)
-        next_state_tensor = torch.tensor([next_state], dtype=torch.float).to(device)
-        action_tensor = torch.tensor([action], dtype=torch.long).to(device)
-        reward_tensor = torch.tensor([reward], dtype=torch.float).to(device)
-        done_tensor = torch.tensor([done], dtype=torch.int).to(device)
+        state_tensor = torch.from_numpy(np.array([state])).float().to(device)
+        next_state_tensor = torch.from_numpy(np.array([next_state])).float().to(device)
+        action_tensor = torch.from_numpy(np.array([action])).long().to(device)
+        reward_tensor = torch.from_numpy(np.array([reward])).float().to(device)
+        done_tensor = torch.from_numpy(np.array([done])).long().to(device)
 
-        td_error = self._calculate_td_error(
-            state_tensor, action_tensor, reward_tensor, next_state_tensor, done_tensor
+        # Compute Q-values for current states and actions
+        Q_current = (
+            self.q_network(state_tensor)
+            .gather(1, action_tensor.unsqueeze(1))
+            .squeeze(1)
         )
+
+        # Select best actions for next states from the Q-network
+        best_actions = self.q_network(next_state_tensor).detach().max(1)[1]
+
+        # Compute Q-values for next states
+        Q_next = self.target_network(next_state_tensor).detach()
+        Q_next_max = Q_next.gather(1, best_actions.unsqueeze(1)).squeeze(1)
+
+        # Compute expected Q-values
+        Q_targets = reward_tensor + (self.gamma * Q_next_max * (1 - done_tensor))
+
+        # Compute TD error
+        td_error = Q_current - Q_targets
+
         return td_error.item()
 
     def update_priorities(self, indices: np.ndarray, errors: np.ndarray) -> None:
@@ -472,6 +479,88 @@ class DDQN:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+    def get_q_value(self, state: np.ndarray):
+        """
+        Get the Q-value for the current state.
+
+        Parameters
+        ----------
+        state : np.ndarray
+            The state from the replay buffer.
+
+        Returns
+        -------
+        float
+            The Q-value for the current state.
+        """
+        state = torch.tensor(state, dtype=torch.float).unsqueeze(0).to(device)
+        return self.q_network(state).detach().cpu().numpy()
+
+    def get_learning_rate(self):
+        """
+        Get the learning rate for the current state.
+
+        Returns
+        -------
+        float
+            The learning rate for the current state.
+        """
+        return self.scheduler.get_last_lr()[0]
+
+    def get_epsilon(self):
+        """
+        Get the epsilon for the current state.
+
+        Returns
+        -------
+        float
+            The epsilon for the current state.
+        """
+        return self.epsilon
+
+    def log_metrics(
+        self,
+        episode,
+        reward,
+        epsilon,
+        lr,
+        q_values,
+        action_distribution,
+        td_error,
+        loss,
+    ):
+        """
+        Log metrics to TensorBoard.
+
+        Parameters
+        ----------
+        episode : int
+            The current episode.
+        reward : float
+            The current reward.
+        epsilon : float
+            The current epsilon.
+        lr : float
+            The current learning rate.
+        q_values : np.array
+            The current Q-values.
+        action_distribution : np.array
+            The current action distribution.
+        td_error : float
+            The current TD error.
+        loss : float
+            The current loss.
+        """
+        self.writer.add_scalar("Reward/episode", reward, episode)
+        self.writer.add_scalar("Epsilon/episode", epsilon, episode)
+        self.writer.add_scalar("Learning Rate/episode", lr, episode)
+        self.writer.add_histogram("Q Values/episode", q_values, episode)
+        self.writer.add_histogram(
+            "Action Distribution/episode", action_distribution, episode
+        )
+        self.writer.add_scalar("TD Error/episode", td_error, episode)
+        self.writer.add_scalar("Loss/episode", loss, episode)
+
     def save_model(self, filename: str):
         """
         Save the model.
@@ -482,6 +571,7 @@ class DDQN:
             The filename to save the model to.
         """
         torch.save(self.q_network.state_dict(), filename)
+        self.writer.close()
 
     def load_model(self, filename: str):
         """
@@ -497,3 +587,6 @@ class DDQN:
 
         self.target_network.load_state_dict(torch.load(filename))
         self.target_network.eval()
+
+    def __del__(self):
+        self.writer.close()

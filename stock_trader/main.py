@@ -5,6 +5,7 @@ from typing import Any
 import argparse
 import matplotlib.pyplot as plt
 import signal
+import numpy as np
 import pandas as pd
 import time
 from termcolor import colored
@@ -33,10 +34,9 @@ def parse_arguments() -> argparse.Namespace:
         help="Stock ticker to train on (e.g., AAPL, MSFT)",
     )
     parser.add_argument(
-        "--render_mode",
-        type=str,
-        default=None,
-        help="Render mode for the environment (e.g., human, none)",
+        "--render",
+        action="store_true",
+        help="Render mode for the environment",
     )
     parser.add_argument(
         "--train",
@@ -44,7 +44,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Train the model if this flag is set, otherwise load the model",
     )
     parser.add_argument(
-        "--download_data",
+        "--download",
         action="store_true",
         help="Download the data for the stock ticker if this flag is set",
     )
@@ -88,6 +88,7 @@ def load_data(config: dict, stock_ticker: str = None) -> pd.DataFrame:
         stock_ticker or config["stock_ticker"],
         start=config["start_date"],
         end=config["end_date"],
+        interval=config["interval"],
     )
     return data
 
@@ -111,7 +112,26 @@ def plot_loss(episode_losses: list, saving_path: str):
     plt.close()
 
 
-def train(config, stock_ticker, render_mode):
+def plot_q_value_differences(q_value_diff: list, saving_path: str):
+    """
+    Plot the Q-value difference per step.
+
+    Parameters
+    ----------
+    q_value_diff : list[float]
+        The Q-value difference per step.
+    """
+    plt.figure(figsize=(10, 5))
+    plt.plot(q_value_diff, label="Q-value Difference per Step")
+    plt.xlabel("Steps")
+    plt.ylabel("Average Q-value Difference")
+    plt.title("Q-value Convergence Over Time")
+    plt.legend()
+    plt.savefig(saving_path)
+    plt.close()
+
+
+def train(config: dict, stock_ticker: str, render: bool):
     """
     Train the model.
 
@@ -129,7 +149,9 @@ def train(config, stock_ticker, render_mode):
     frame_bound = (window_size, len(df))
     num_episodes = config["num_episodes"]
 
-    env = StockTradingEnv(df, config["window_size"], frame_bound, render_mode)
+    env = StockTradingEnv(
+        df, config["window_size"], frame_bound, "human" if render else None
+    )
 
     # Initialize DDQN agent
     state_size = env.observation_space.shape[0] * env.observation_space.shape[1]
@@ -148,6 +170,9 @@ def train(config, stock_ticker, render_mode):
     for episode in range(num_episodes):
         total_reward = 0
         total_profit = 0
+        q_values = []
+        action_counts = [0] * env.action_space.n
+        td_errors = []
         observation, info = env.reset()
         done = False
 
@@ -181,6 +206,8 @@ def train(config, stock_ticker, render_mode):
             if loss is not None:
                 losses.append(loss)
 
+            agent.calculate_q_value_diff(observation_flat)
+
             # Update the target network
             # if episeode % config["agent"]["update_target_network_frequency"] == 0:
             agent.update_target_network()
@@ -188,13 +215,35 @@ def train(config, stock_ticker, render_mode):
 
             total_reward += reward
             total_profit = info.get("total_profit", total_profit)
+            q_values.append(agent.get_q_value(observation_flat))
+            action_counts[action] += 1
+            td_errors.append(td_error)
 
             if truncated:
                 break
 
-        # Calculating and storing average loss for the episode
+        current_epsilon = agent.get_epsilon()
+        current_learning_rate = agent.get_learning_rate()
         average_loss = sum(losses) / len(losses) if losses else 0
         episode_losses.append(average_loss)
+        average_td_error = sum(td_errors) / len(td_errors) if td_errors else 0
+
+        # Converting list to np array for tensorboard logging
+        q_values = np.array(q_values)
+        td_errors = np.array(td_errors)
+        action_counts = np.array(action_counts)
+
+        # Log summary for the episode to tensorboard
+        agent.log_metrics(
+            episode,
+            total_reward,
+            current_epsilon,
+            current_learning_rate,
+            q_values,
+            action_counts,
+            average_td_error,
+            average_loss,
+        )
 
         if (episode + 1) % config["save_interval"] == 0:
             agent.save_model(f'{config["agent"]["model_path"]}model_{episode + 1}.pt')
@@ -206,13 +255,18 @@ def train(config, stock_ticker, render_mode):
         print(colored(f"Average Loss: {average_loss:.2f}\n", "red"))
 
     env.close()
+
     plot_loss(
         episode_losses,
         config["losses_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
     )
+    plot_q_value_differences(
+        agent.q_value_diff,
+        config["q_values_plot_path"] + time.strftime("%Y%m%d-%H%M%S") + ".png",
+    )
 
 
-def evaluate(config, stock_ticker, render_mode):
+def evaluate(config: dict, stock_ticker: str, render: bool):
     """
     Evaluate the trained model.
 
@@ -229,7 +283,9 @@ def evaluate(config, stock_ticker, render_mode):
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
 
-    env = StockTradingEnv(df, config["window_size"], frame_bound, render_mode)
+    env = StockTradingEnv(
+        df, config["window_size"], frame_bound, "human" if render else None
+    )
 
     state_size = env.observation_space.shape[0] * env.observation_space.shape[1]
     action_size = env.action_space.n
@@ -261,17 +317,25 @@ def evaluate(config, stock_ticker, render_mode):
     env.close()
 
 
-def download_data(stock_ticker: str) -> None:
+def download_data(config: dict, stock_ticker: str) -> None:
     """
     Download the data for the stock trading environment.
 
     Parameters
     ----------
+    config : dict[str, Any]
+        The configuration for the stock trading environment.
     stock_ticker : str
         The stock ticker to train on.
     """
-    data = yf.download(stock_ticker, start="2020-01-01", end="2021-01-01")
-    data.to_csv(f"stock_trader/data/{stock_ticker}.csv")
+    start_date = config["start_date"]
+    end_date = config["end_date"]
+    interval = config["interval"]
+    data = yf.download(stock_ticker, start=start_date, end=end_date, interval=interval)
+    data.to_csv(
+        f"stock_trader/data/raw/"
+        f"{stock_ticker}-{interval}-from-{start_date}-to-{end_date}.csv"
+    )
 
 
 def main() -> None:
@@ -284,16 +348,16 @@ def main() -> None:
     # Load or train the model based on the `train` argument
     if args.train:
         print("Training mode activated. The model will be saved after training.")
-        train(config, args.stock_ticker, args.render_mode)
+        train(config, args.stock_ticker, args.render)
     elif args.evaluate:
         print("Loading the trained model for evaluation.")
-        evaluate(config, args.stock_ticker, args.render_mode)
-    elif args.download_data:
+        evaluate(config, args.stock_ticker, args.render)
+    elif args.download:
         print("Downloading data for the stock ticker.")
-        download_data(args.stock_ticker)
+        download_data(config, args.stock_ticker)
     else:
         raise ValueError(
-            "Please specify either the `train`, `evaluate`, or `download_data` flag."
+            "Please specify either the `train`, `evaluate`, or `download` flag."
         )
 
 
