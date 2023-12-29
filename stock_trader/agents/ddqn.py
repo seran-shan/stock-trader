@@ -3,7 +3,7 @@ Double Deep Q-Learning Network (DDQN) agent.
 """
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
 # pylint: disable=import-error

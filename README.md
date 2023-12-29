@@ -4,19 +4,28 @@ This project is a stock trading simulation using reinforcement learning.
 
 ## Project Structure
 
+## Project Structure
+
+- `.github/`: Contains GitHub workflow configurations.
+  - `workflows/`: Contains workflow configuration files like `pylint.yml`.
+- `.vscode/`: Contains configuration files for Visual Studio Code.
 - `stock_trader/`: Main source code directory.
   - `agents/`: Contains the reinforcement learning agents.
     - `ddqn.py`: Implements the Double DQN agent.
     - `utils/`: Utility functions and classes for the agents.
   - `data/`: Directory for data files.
-    - `processed/`: Processed data files.
-    - `raw/`: Raw data files.
   - `environments/`: Contains the trading environments.
-    - `gym_trading_env.py`: Gym-compatible trading environment.
     - `stock_trading_env.py`: Custom stock trading environment.
+  - `logs/`: Directory for log files.
+  - `models/`: Directory for saved models.
+  - `plots/`: Directory for plot files.
+    - `losses/`: Directory for loss plots.
+    - `q_values/`: Directory for Q-value plots.
   - `main.py`: Main entry point of the application.
 - `tests/`: Contains unit tests for the project.
 - `pyproject.toml` and `poetry.lock`: Configuration files for dependencies and project setup.
+- `config.yaml`: Configuration file for the application.
+- `README.md`: This file.
 
 ## Setup
 
