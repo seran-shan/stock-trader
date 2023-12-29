@@ -17,7 +17,8 @@ data:
     start_date: 2023-01-01
     end_date: 2023-12-01
   interval: 1h # 1m for minute data, 1h for hourly data, 1d for daily data, 1wk for weekly data, 1mo for monthly data
-  data_path: stock_trader/data/
+  proccessed_path: stock_trader/data/processed/
+  raw_path: stock_trader/data/raw/
   losses_plot_path: stock_trader/plots/losses/
   q_values_plot_path: stock_trader/plots/q_values/
   file_name: AAPL-1h-from-2022-01-01-to-2023-01-01.csv
