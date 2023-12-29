@@ -221,7 +221,7 @@ class StockTradingEnv(gym.Env):
         mode : str
             The mode to render the environment in.
         """
-        if self.render_mode == None:
+        if mode is None:
             return
 
         def plot_position(position: Positions, step: int) -> None:
