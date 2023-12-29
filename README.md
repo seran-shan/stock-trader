@@ -58,7 +58,13 @@ python3 stock_trader/main.py [--train/--evaluate] --render
 python3 stock_trader/main.py [--train/--evaluate] --stock_ticker AAPL
 ```
 
-5. Download own stock:
+5. Use offline dataset:
+
+```sh
+python3 stock_trader/main.py [--train/--evaluate] --offline
+```
+
+6. Download own stock:
 
 ```sh
 python3 stock_trader/main.py --download AAPl

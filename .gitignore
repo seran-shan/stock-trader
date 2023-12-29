@@ -235,3 +235,4 @@ gym_trading_env.py
 **/q_values/*
 **/models/*
 **/data/*
+**/logs/*

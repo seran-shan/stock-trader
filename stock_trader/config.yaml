@@ -20,6 +20,7 @@ data:
   data_path: stock_trader/data/
   losses_plot_path: stock_trader/plots/losses/
   q_values_plot_path: stock_trader/plots/q_values/
+  file_name: AAPL-1h-from-2022-01-01-to-2023-01-01.csv
 
 ## Configuration for agent
 agent:

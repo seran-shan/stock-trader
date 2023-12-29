@@ -53,6 +53,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Evaluate the model if this flag is set, otherwise train the model",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use already downloaded data when training",
+    )
     args = parser.parse_args()
     return args
 
@@ -71,7 +76,10 @@ def load_config() -> dict[str, Any]:
 
 
 def load_data(
-    config: dict, stock_ticker: str = None, train_data: bool | None = None
+    config: dict,
+    stock_ticker: str = None,
+    train_data: bool | None = None,
+    offline: bool | None = None,
 ) -> pd.DataFrame:
     """
     Load the data for the stock trading environment.
@@ -86,6 +94,11 @@ def load_data(
     data : pd.DataFrame
         The data for the stock trading environment.
     """
+    if offline:
+        return pd.read_csv(
+            f"{config['data']['data_path']}raw/{config['data']['file_name']}"
+        )
+
     start_date = (
         config["data"]["train"]["start_date"]
         if train_data
@@ -145,7 +158,7 @@ def plot_q_value_differences(q_value_diff: list, saving_path: str):
     plt.close()
 
 
-def train(config: dict, stock_ticker: str, render: bool):
+def train(config: dict, stock_ticker: str, render: bool, offline: bool):
     """
     Train the model.
 
@@ -158,7 +171,7 @@ def train(config: dict, stock_ticker: str, render: bool):
     render_mode : str
         The render mode for the environment.
     """
-    df = load_data(config, stock_ticker, train_data=True)
+    df = load_data(config, stock_ticker, train_data=True, offline=offline)
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
     num_episodes = config["num_episodes"]
@@ -286,7 +299,7 @@ def train(config: dict, stock_ticker: str, render: bool):
     )
 
 
-def evaluate(config: dict, stock_ticker: str, render: bool):
+def evaluate(config: dict, stock_ticker: str, render: bool, offline: bool):
     """
     Evaluate the trained model.
 
@@ -299,7 +312,11 @@ def evaluate(config: dict, stock_ticker: str, render: bool):
     render_mode : str
         The render mode for the environment.
     """
-    df = load_data(config, stock_ticker) if stock_ticker else load_data(config)
+    df = (
+        load_data(config, stock_ticker, offline=offline)
+        if stock_ticker
+        else load_data(config, offline=offline)
+    )
     window_size = config["window_size"]
     frame_bound = (window_size, len(df))
 
@@ -376,10 +393,10 @@ def main() -> None:
     # Load or train the model based on the `train` argument
     if args.train:
         print("Training mode activated. The model will be saved after training.")
-        train(config, args.stock_ticker, args.render)
+        train(config, args.stock_ticker, args.render, args.offline)
     elif args.evaluate:
         print("Loading the trained model for evaluation.")
-        evaluate(config, args.stock_ticker, args.render)
+        evaluate(config, args.stock_ticker, args.render, args.offline)
     elif args.download:
         print("Downloading data for the stock ticker.")
         download_data(config, args.stock_ticker)
