@@ -34,8 +34,11 @@ class DNN(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, output_size: int):
         super(DNN, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
+        self.batch_norm1 = nn.BatchNorm1d(hidden_size)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.5)
         self.layer2 = nn.Linear(hidden_size, hidden_size)
+        self.batch_norm2 = nn.BatchNorm1d(hidden_size)
         self.output_layer = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -52,8 +55,9 @@ class DNN(nn.Module):
         torch.Tensor
             The output of the neural network.
         """
-        x = self.relu(self.layer1(x))
-        x = self.relu(self.layer2(x))
+        x = self.relu(self.batch_norm1(self.layer1(x)))
+        x = self.dropout(x)
+        x = self.relu(self.batch_norm2(self.layer2(x)))
         x = self.output_layer(x)
         return x
 
