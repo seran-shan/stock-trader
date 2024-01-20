@@ -1,8 +1,6 @@
 # Stock Trader
 
-This project is a stock trading simulation using reinforcement learning.
-
-## Project Structure
+This initiative involves creating a simulated stock trading environment using reinforcement learning techniques. The core of this simulation is a Double Deep Q-Network (DDQN) agent, which is implemented to optimize the returns of a stock trading portfolio. To facilitate this simulation, the project leverages the OpenAI Gym framework, within which it establishes a custom stock trading environment.
 
 ## Project Structure
 
